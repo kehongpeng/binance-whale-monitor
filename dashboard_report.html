@@ -1,0 +1,951 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>币安期货主力出货监控系统 - 自动发现模式</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0d1117;
+            color: #e6edf3;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+        }
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .header .subtitle {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .mode-badge {
+            display: inline-block;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 20px 0;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: #667eea;
+        }
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #8b949e;
+            margin-top: 5px;
+        }
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        @media (max-width: 768px) {
+            .two-column {
+                grid-template-columns: 1fr;
+            }
+        }
+        .panel {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .panel h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .feed-item {
+            background: rgba(102, 126, 234, 0.05);
+            border-left: 4px solid;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 0 8px 8px 0;
+            transition: all 0.2s;
+        }
+        .feed-item:hover {
+            background: rgba(102, 126, 234, 0.1);
+        }
+        .feed-item.high-risk {
+            border-color: #ff4b4b;
+        }
+        .feed-item.medium-risk {
+            border-color: #ffa500;
+        }
+        .feed-item.low-risk {
+            border-color: #00cc66;
+        }
+        .feed-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .feed-symbol {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .feed-score {
+            font-size: 14px;
+            color: #8b949e;
+        }
+        .feed-signals {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 8px;
+        }
+        .signal-tag {
+            background: #30363d;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .data-table th {
+            text-align: left;
+            padding: 12px;
+            background: #0d1117;
+            font-size: 12px;
+            color: #8b949e;
+            text-transform: uppercase;
+        }
+        .data-table td {
+            padding: 12px;
+            border-bottom: 1px solid #30363d;
+        }
+        .data-table tr:hover td {
+            background: rgba(102, 126, 234, 0.05);
+        }
+        .score-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .score-high {
+            background: rgba(255, 75, 75, 0.2);
+            color: #ff4b4b;
+        }
+        .score-medium {
+            background: rgba(255, 165, 0, 0.2);
+            color: #ffa500;
+        }
+        .score-low {
+            background: rgba(0, 204, 102, 0.2);
+            color: #00cc66;
+        }
+        .progress-bar {
+            height: 6px;
+            background: #30363d;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: #8b949e;
+            font-size: 12px;
+            border-top: 1px solid #30363d;
+            margin-top: 40px;
+        }
+        .sidebar {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .sidebar h3 {
+            font-size: 14px;
+            margin-bottom: 15px;
+            color: #8b949e;
+        }
+        .slider-control {
+            margin-bottom: 20px;
+        }
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .slider {
+            width: 100%;
+            height: 6px;
+            background: #30363d;
+            border-radius: 3px;
+            position: relative;
+        }
+        .slider-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            border-radius: 3px;
+            width: 50%;
+        }
+        .btn {
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 币安期货主力出货/吸筹监控系统</h1>
+        <div class="subtitle">自动发现全市场异常信号 · 实时多因子分析</div>
+    </div>
+
+    <div class="container">
+        <div class="mode-badge">🔍 自动发现模式 - 扫描全市场异常</div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">689</div>
+                <div class="stat-label">监控币种总数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">158</div>
+                <div class="stat-label">异常币种发现</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">9</div>
+                <div class="stat-label">高风险信号</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">2</div>
+                <div class="stat-label">API调用/轮</div>
+            </div>
+        </div>
+
+        <div class="two-column">
+            <!-- 左列：发现Feed -->
+            <div>
+                <div class="panel">
+                    <h2>🔍 实时发现 Feed</h2>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">BTRUSDT</span>
+                            <span class="feed-score">评分: 0.65</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: -1.384% (空头付息)</span><span class="signal-tag">24h价格变化: -77.4%</span><span class="signal-tag">日内波动: 488.2%</span></div>
+                    </div>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">JTOUSDT</span>
+                            <span class="feed-score">评分: 0.62</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: -0.287% (空头付息)</span><span class="signal-tag">24h价格变化: +14.3%</span><span class="signal-tag">日内波动: 19.6%</span></div>
+                    </div>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">UAIUSDT</span>
+                            <span class="feed-score">评分: 0.62</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: -0.344% (空头付息)</span><span class="signal-tag">24h价格变化: -26.3%</span><span class="signal-tag">日内波动: 52.9%</span></div>
+                    </div>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">AEROUSDT</span>
+                            <span class="feed-score">评分: 0.62</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: -0.202% (空头付息)</span><span class="signal-tag">24h价格变化: +13.1%</span><span class="signal-tag">日内波动: 21.6%</span></div>
+                    </div>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">A2ZUSDT</span>
+                            <span class="feed-score">评分: 0.62</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: +0.793% (多头付息)</span><span class="signal-tag">24h价格变化: +34.3%</span><span class="signal-tag">日内波动: 49.5%</span></div>
+                    </div>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">1000000BOBUSDT</span>
+                            <span class="feed-score">评分: 0.62</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: +0.190% (多头付息)</span><span class="signal-tag">24h价格变化: +7.4%</span><span class="signal-tag">日内波动: 10.9%</span></div>
+                    </div>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">HOOKUSDT</span>
+                            <span class="feed-score">评分: 0.62</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: -0.175% (空头付息)</span><span class="signal-tag">24h价格变化: -9.9%</span><span class="signal-tag">日内波动: 14.8%</span></div>
+                    </div>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">SIRENUSDT</span>
+                            <span class="feed-score">评分: 0.60</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: -0.105% (空头付息)</span><span class="signal-tag">24h价格变化: +6.5%</span><span class="signal-tag">日内波动: 223.2%</span></div>
+                    </div>
+
+                    <div class="feed-item medium-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">NTRNUSDT</span>
+                            <span class="feed-score">评分: 0.56</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: +0.111% (多头付息)</span><span class="signal-tag">24h价格变化: -7.8%</span><span class="signal-tag">日内波动: 11.9%</span></div>
+                    </div>
+
+                    <div class="feed-item low-risk">
+                        <div class="feed-header">
+                            <span class="feed-symbol">BULLAUSDT</span>
+                            <span class="feed-score">评分: 0.49</span>
+                        </div>
+                        <div class="feed-signals"><span class="signal-tag">资金费率: +0.066% (多头付息)</span><span class="signal-tag">24h价格变化: -7.6%</span><span class="signal-tag">日内波动: 12.8%</span></div>
+                    </div>
+
+                </div>
+
+                <!-- 侧边栏配置 -->
+                <div class="sidebar" style="margin-top: 20px;">
+                    <h3>⚙️ 筛选配置</h3>
+
+                    <div class="slider-control">
+                        <div class="slider-label">
+                            <span>OI变化率阈值</span>
+                            <span>5.0%</span>
+                        </div>
+                        <div class="slider"><div class="slider-fill" style="width: 25%"></div></div>
+                    </div>
+
+                    <div class="slider-control">
+                        <div class="slider-label">
+                            <span>资金费率阈值</span>
+                            <span>0.05%</span>
+                        </div>
+                        <div class="slider"><div class="slider-fill" style="width: 10%"></div></div>
+                    </div>
+
+                    <div class="slider-control">
+                        <div class="slider-label">
+                            <span>最小异常评分</span>
+                            <span>0.30</span>
+                        </div>
+                        <div class="slider"><div class="slider-fill" style="width: 30%"></div></div>
+                    </div>
+
+                    <button class="btn">🚀 立即扫描全市场</button>
+                </div>
+            </div>
+
+            <!-- 右列：详细数据 -->
+            <div>
+                <div class="panel">
+                    <h2>📊 异常币种详情</h2>
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>排名</th>
+                                <th>币种</th>
+                                <th>综合评分</th>
+                                <th>OI因子</th>
+                                <th>资金费率</th>
+                                <th>成交量</th>
+                                <th>波动率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+                            <tr>
+                                <td>1</td>
+                                <td><strong>BTRUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.65</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 78.39999999999999%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>2</td>
+                                <td><strong>JTOUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.62</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>3</td>
+                                <td><strong>UAIUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.62</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>4</td>
+                                <td><strong>AEROUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.62</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>5</td>
+                                <td><strong>A2ZUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.62</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>6</td>
+                                <td><strong>1000000BOBUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.62</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>7</td>
+                                <td><strong>HOOKUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.62</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>8</td>
+                                <td><strong>SIRENUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.60</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 69.85666666666664%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 89.91%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>9</td>
+                                <td><strong>NTRNUSDT</strong></td>
+                                <td><span class="score-badge score-medium">0.56</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 73.70333333333332%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>10</td>
+                                <td><strong>BULLAUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.49</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 44.09599999999999%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>11</td>
+                                <td><strong>DENTUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.48</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 55.84133333333333%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 62.779999999999994%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 91.25067096081591%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>12</td>
+                                <td><strong>GRIFFAINUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.47</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 38.608%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 70.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>13</td>
+                                <td><strong>STABLEUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.45</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>14</td>
+                                <td><strong>COSUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.45</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>15</td>
+                                <td><strong>CFGUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.45</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 98.43043362596434%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>16</td>
+                                <td><strong>TURBOUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.44</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 33.80533333333333%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 61.8%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>17</td>
+                                <td><strong>ALPACAUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.44</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 95.19999999999999%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>18</td>
+                                <td><strong>RIVERUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.43</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 92.19999999999999%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>19</td>
+                                <td><strong>BNXUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.43</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 90.39999999999999%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <td>20</td>
+                                <td><strong>BARDUSDT</strong></td>
+                                <td><span class="score-badge score-low">0.42</span></td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #667eea;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 100.0%; background: #ffa500;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 0.0%; background: #00cc66;"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: 87.35892713793274%; background: #ff4b4b;"></div>
+                                    </div>
+                                </td>
+                            </tr>
+
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>币安期货主力出货监控系统 v2.0 | 自动发现模式 | 生成时间: 2026-03-24 00:15:43</p>
+            <p>扫描范围: 689 个USDT合约 | 发现异常: 158 个币种</p>
+        </div>
+    </div>
+</body>
+</html>
