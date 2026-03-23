@@ -1,0 +1,54 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Deploy to Server via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SERVER_HOST }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        port: ${{ secrets.SERVER_PORT || 22 }}
+        script: |
+          cd /opt/binance-whale-monitor || exit 1
+
+          # 备份当前版本
+          echo "Creating backup..."
+          tar -czf backup_$(date +%Y%m%d_%H%M%S).tar.gz --exclude='venv' --exclude='__pycache__' --exclude='logs/*.log' .
+
+          # 拉取最新代码
+          echo "Pulling latest code..."
+          git fetch origin
+          git reset --hard origin/$(git rev-parse --abbrev-ref HEAD)
+
+          # 激活虚拟环境并安装依赖
+          echo "Installing dependencies..."
+          source venv/bin/activate
+          pip install -r requirements.txt -q
+
+          # 重启服务 (使用supervisor或systemd)
+          echo "Restarting services..."
+          if command -v supervisorctl &> /dev/null; then
+            sudo supervisorctl restart whale-monitor
+            sudo supervisorctl restart whale-realtime
+          elif command -v systemctl &> /dev/null; then
+            sudo systemctl restart whale-monitor
+            sudo systemctl restart whale-realtime
+          else
+            # 直接杀死并重启
+            pkill -f "realtime_server.py" || true
+            sleep 2
+            nohup python3 realtime_server.py > server.log 2>&1 &
+          fi
+
+          echo "Deployment completed!"
